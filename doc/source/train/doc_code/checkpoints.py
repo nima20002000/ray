@@ -248,13 +248,15 @@ class CustomRayTrainReportCallback(Callback):
             metrics["custom_metric"] = 123
 
             checkpoint = None
-            global_rank = ray.train.get_context().get_world_rank() == 0
-            if global_rank == 0 and should_checkpoint:
-                # Save model checkpoint file to tmpdir
+            if should_checkpoint:
+                # Save model checkpoint file to tmpdir.
+                # Lightning uses a distributed barrier in save_checkpoint, so
+                # all workers need to call this method.
                 ckpt_path = os.path.join(tmpdir, "ckpt.pt")
                 trainer.save_checkpoint(ckpt_path, weights_only=False)
 
-                checkpoint = Checkpoint.from_directory(tmpdir)
+                if ray.train.get_context().get_world_rank() == 0:
+                    checkpoint = Checkpoint.from_directory(tmpdir)
 
             # Report to train session
             ray.train.report(metrics=metrics, checkpoint=checkpoint)
